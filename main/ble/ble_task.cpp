@@ -220,6 +220,7 @@ int blecent_write(bool toRadar, const bleQueueItem dataToWrite) {
     }
 
     int rc = ble_gattc_write_flat(conn_handle, chr->chr.val_handle, dataToWrite.data, dataToWrite.data_length, blecent_on_write, NULL);
+    free(dataToWrite.data);
     if (rc != 0) {
         ESP_LOGE(TAG, "failed to write characteristic: rc %d", rc);
         return ble_gap_terminate(peer->conn_handle, BLE_ERR_REM_USER_CONN_TERM);
@@ -264,7 +265,7 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
             return 0;
         case BLE_GAP_EVENT_CONNECT:
             if (event->connect.status == 0) {
-                ESP_LOGI(TAG, "Connection established ");
+                ESP_LOGI(TAG, "Connection established handle=%d", event->connect.conn_handle);
 
                 rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
                 assert(rc == 0);
@@ -293,7 +294,7 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
 
             return 0;
         case BLE_GAP_EVENT_ENC_CHANGE:
-            ESP_LOGI(TAG, "encryption change event; status=%d ", event->enc_change.status);
+            ESP_LOGI(TAG, "encryption change event; status=%d conn_handle=%d", event->enc_change.status, event->connect.conn_handle);
             rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
             assert(rc == 0);
             print_conn_desc(&desc);
@@ -401,8 +402,8 @@ void ble_init() {
         ble_store_config_init();
 
         nimble_port_freertos_init(ble_hosttask);
-        xTaskCreatePinnedToCore(ble_outbox_task, "OutboxTask", 2048, NULL, 2, &xBLEHelperTask, 1);
     }
+    xTaskCreatePinnedToCore(ble_outbox_task, "OutboxTask", 4096, NULL, 5, &xBLEHelperTask, 0);
 }
 
 void ble_outbox_task(void *pvParameter) {
@@ -411,7 +412,7 @@ void ble_outbox_task(void *pvParameter) {
         BLEHelperTaskNotification notification;
         if (xTaskNotifyWait(0, ULONG_MAX, (uint32_t *)&notification, pdMS_TO_TICKS(10))) {
             switch (notification) {
-                case SUBSYSTEM_STOP:
+                case NIMBLE_STOP:
                     ESP_LOGW(TAG, "nimble stopping");
                     if (xRadarTask != NULL) {
                         ESP_LOGW(TAG, "removing radar");
@@ -429,7 +430,7 @@ void ble_outbox_task(void *pvParameter) {
                     nimble_port_deinit();
                     xSemaphoreGive(xBLESemaphore);
                     ESP_LOGW(TAG, "nimble dead.");
-                case SUBSYSTEM_INIT:
+                case NIMBLE_START:
                     ble_init();
             }
         }

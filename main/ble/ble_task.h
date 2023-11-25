@@ -54,6 +54,6 @@ void ble_outbox_task(void *pvParameter);
 inline TaskHandle_t xBLEHelperTask = nullptr;
 inline SemaphoreHandle_t xBLESemaphore = nullptr;
 
-typedef enum BLEHelperTaskNotification { SUBSYSTEM_STOP, SUBSYSTEM_INIT } BLEHelperTaskNotification;
+typedef enum BLEHelperTaskNotification { NIMBLE_STOP, NIMBLE_START } BLEHelperTaskNotification;
 
 #endif

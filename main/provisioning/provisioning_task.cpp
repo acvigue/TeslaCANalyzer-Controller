@@ -46,7 +46,7 @@ void prov_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
             case WIFI_PROV_DEINIT: {
                 xSemaphoreGive(xBLESemaphore);
                 if (xBLEHelperTask != NULL) {
-                    xTaskNotify(xBLEHelperTask, BLEHelperTaskNotification::SUBSYSTEM_INIT, eSetValueWithOverwrite);
+                    xTaskNotify(xBLEHelperTask, BLEHelperTaskNotification::NIMBLE_START, eSetValueWithOverwrite);
                 }
             }
         }
@@ -54,7 +54,7 @@ void prov_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
 }
 
 void provisioning_task(void *pvParameter) {
-    ESP_LOGI(TAG, "provisioning task started");
+    ESP_LOGI(TAG, "task started");
     while (true) {
         ProvisioningTaskNotification_t notification;
         if (xTaskNotifyWait(0, ULONG_MAX, (uint32_t *)&notification, portMAX_DELAY) == pdTRUE) {
@@ -76,7 +76,7 @@ void provisioning_task(void *pvParameter) {
                     if (wifi_prov_mgr_start_provisioning(WIFI_PROV_SECURITY_0, NULL, "TeslaCANalyzer", NULL) != ESP_OK) {
                         if (xBLEHelperTask != NULL) {
                             ESP_LOGW(TAG, "init failed, taking BLE from nimble");
-                            xTaskNotify(xBLEHelperTask, BLEHelperTaskNotification::SUBSYSTEM_STOP, eSetValueWithOverwrite);
+                            xTaskNotify(xBLEHelperTask, BLEHelperTaskNotification::NIMBLE_STOP, eSetValueWithOverwrite);
                             if (xSemaphoreTake(xBLESemaphore, portMAX_DELAY) == pdPASS) {
                                 ESP_LOGI(TAG, "attempting to retry");
                                 if (wifi_prov_mgr_start_provisioning(WIFI_PROV_SECURITY_0, NULL, "TeslaCANalyzer", NULL) != ESP_OK) {

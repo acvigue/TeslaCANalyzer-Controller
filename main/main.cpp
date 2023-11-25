@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "ble_task.h"
+#include "mqtt_task.h"
 #include "provisioning_task.h"
 #include "wifi_task.h"
 
@@ -21,9 +22,10 @@ extern "C" void app_main(void) {
     xBLESemaphore = xSemaphoreCreateBinary();
     xSemaphoreGive(xBLESemaphore);
 
-    provisioning_init();
     ble_init();
-    wifi_init();
+    provisioning_init();
+    // wifi_init();
+    // mqtt_init();
 
     while (true) {
         ESP_LOGI("main", "free heap: %" PRIu32 "b", esp_get_free_heap_size());

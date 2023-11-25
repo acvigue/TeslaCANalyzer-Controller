@@ -54,6 +54,7 @@ void radar_task(void *pvParameter) {
             //  F5 _length_ _code_ _data_
             if (!validateInboxItem(inboxItem)) {
                 ESP_LOGW(TAG, "dropping invalid packet");
+                free(inboxItem.data);
                 continue;
             }
 

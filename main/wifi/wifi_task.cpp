@@ -8,6 +8,7 @@
 #include <freertos/task.h>
 #include <string.h>
 
+#include "mqtt_task.h"
 #include "provisioning_task.h"
 
 char hostname[18];
@@ -34,6 +35,11 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
             case WIFI_EVENT_STA_DISCONNECTED: {
                 wifiConnectionAttempts++;
                 ESP_LOGI(TAG, "STA disconnected");
+
+                if (xMQTTTask != NULL) {
+                    xTaskNotify(xMQTTTask, MQTTTaskNotification::MQTT_STOP, eSetValueWithOverwrite);
+                }
+
                 if (wifiConnectionAttempts > 5) {
                     xTaskNotify(xProvisioningTask, ProvisioningTaskNotification_t::START_PROVISIONING, eSetValueWithOverwrite);
                 }
@@ -47,7 +53,9 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
             wifiConnectionAttempts = 0;
             ESP_LOGI(TAG, "STA connected!");
 
-            /* Setup MQTT */
+            if (xMQTTTask != NULL) {
+                xTaskNotify(xMQTTTask, MQTTTaskNotification::MQTT_START, eSetValueWithOverwrite);
+            }
         }
     }
 }
