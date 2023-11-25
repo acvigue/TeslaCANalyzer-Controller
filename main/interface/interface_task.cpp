@@ -2,11 +2,13 @@
 
 #include "esp_central.h"
 
+#define TAG "interface"
+
 QueueHandle_t getInterfaceInbox() { return xInterfaceInboxQueue; }
 QueueHandle_t getInterfaceOutbox() { return xInterfaceOutboxQueue; }
 
 void interface_task(void *pvParameter) {
-    ESP_LOGI(INTERFACE_TAG, "task start");
+    ESP_LOGI(TAG, "task start");
 
     xInterfaceInboxQueue = xQueueCreate(10, sizeof(bleQueueItem));
     xInterfaceOutboxQueue = xQueueCreate(10, sizeof(bleQueueItem));
@@ -21,7 +23,7 @@ void interface_task(void *pvParameter) {
                 vQueueDelete(xInterfaceOutboxQueue);
                 xInterfaceInboxQueue = NULL;
                 xInterfaceOutboxQueue = NULL;
-                return;
+                vTaskDelete(NULL);
             }
         }
     }

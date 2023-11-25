@@ -1,11 +1,11 @@
 #ifndef H_HELPER_BLE_
 #define H_HELPER_BLE_
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <host/ble_uuid.h>
 
 #include "esp_central.h"
-
-#define BLE_TAG "nimble_helper"
 
 /*** Radar constants ***/
 
@@ -49,6 +49,11 @@ void blecent_rx_subscribe(const struct peer *peer);
 int blecent_write(uint16_t conn_handle, const bleQueueItem dataToWrite);
 int blecent_on_subscribe(uint16_t conn_handle, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void *arg);
 void ble_init();
-void ble_helpertask(void *pvParameter);
+void ble_outbox_task(void *pvParameter);
+
+inline TaskHandle_t xBLEHelperTask = nullptr;
+inline SemaphoreHandle_t xBLESemaphore = nullptr;
+
+typedef enum BLEHelperTaskNotification { SUBSYSTEM_STOP, SUBSYSTEM_INIT } BLEHelperTaskNotification;
 
 #endif

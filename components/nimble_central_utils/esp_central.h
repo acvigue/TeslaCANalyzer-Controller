@@ -7,6 +7,8 @@
 #ifndef H_ESP_CENTRAL_
 #define H_ESP_CENTRAL_
 
+#include <stdio.h>
+
 typedef struct bleQueueItem {
     uint8_t data_length;
     uint8_t *data;

@@ -6,11 +6,10 @@
 #include <freertos/task.h>
 #include <freertos/timers.h>
 
-#define RADAR_TAG "radar"
-
 inline QueueHandle_t xRadarInboxQueue;
 inline QueueHandle_t xRadarOutboxQueue;
 inline TaskHandle_t xRadarTask = NULL;
+inline bool unlocked = false;
 
 void radar_task(void *pvParameter);
 

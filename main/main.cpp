@@ -1,8 +1,12 @@
 
+#include <esp_event.h>
 #include <freertos/FreeRTOS.h>
-#include <helper_ble.h>
 #include <nvs_flash.h>
 #include <stdio.h>
+
+#include "ble_task.h"
+#include "provisioning_task.h"
+#include "wifi_task.h"
 
 extern "C" void app_main(void) {
     /* Initialize NVS — it is used to store PHY calibration data */
@@ -12,11 +16,17 @@ extern "C" void app_main(void) {
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    xBLESemaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(xBLESemaphore);
+
+    provisioning_init();
     ble_init();
+    wifi_init();
 
     while (true) {
         ESP_LOGI("main", "free heap: %" PRIu32 "b", esp_get_free_heap_size());
-        vTaskDelay(5000);
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }

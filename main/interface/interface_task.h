@@ -5,8 +5,6 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
-#define INTERFACE_TAG "interface"
-
 inline QueueHandle_t xInterfaceInboxQueue;
 inline QueueHandle_t xInterfaceOutboxQueue;
 inline TaskHandle_t xInterfaceTask = NULL;
