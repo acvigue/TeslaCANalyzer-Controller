@@ -10,8 +10,9 @@
 
 #include "mqtt_task.h"
 #include "provisioning_task.h"
+#include "radar_task.h"
 
-char hostname[18];
+char hostname[22];
 
 #define TAG "wifi"
 
@@ -34,6 +35,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
             }
             case WIFI_EVENT_STA_DISCONNECTED: {
                 wifiConnectionAttempts++;
+                show_message("WiFi disc!", 10);
                 ESP_LOGI(TAG, "STA disconnected");
 
                 if (xMQTTTask != NULL) {
@@ -52,6 +54,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
         if (event_id == IP_EVENT_STA_GOT_IP) {
             wifiConnectionAttempts = 0;
             ESP_LOGI(TAG, "STA connected!");
+            show_message("WiFi OK", 7);
 
             if (xMQTTTask != NULL) {
                 xTaskNotify(xMQTTTask, MQTTTaskNotification::MQTT_START, eSetValueWithOverwrite);
@@ -71,12 +74,11 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(wifi_mode_t::WIFI_MODE_STA));
 
-    esp_netif_set_hostname(netif, hostname);
-
-    char device_id[7];
+    char device_id[13];
     uint8_t eth_mac[6];
     esp_wifi_get_mac(WIFI_IF_STA, eth_mac);
-    snprintf(device_id, 7, "%02X%02X%02X", eth_mac[3], eth_mac[4], eth_mac[5]);
-    snprintf(hostname, 18, "CANalyzer: %s", device_id);
+    snprintf(device_id, 13, "%02X%02X%02X%02X%02X%02X", eth_mac[0], eth_mac[1], eth_mac[2], eth_mac[3], eth_mac[4], eth_mac[5]);
+    snprintf(hostname, 22, "TeslaCAN-%s", device_id);
+    esp_netif_set_hostname(netif, hostname);
     ESP_ERROR_CHECK(esp_wifi_start());
 }

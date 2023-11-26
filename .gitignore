@@ -109,3 +109,4 @@ size_info.txt
 
 # Vale
 .vale/styles/*
+main/mqtt/secrets.h

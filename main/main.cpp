@@ -16,16 +16,17 @@ extern "C" void app_main(void) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
+
     ESP_ERROR_CHECK(ret);
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     xBLESemaphore = xSemaphoreCreateBinary();
     xSemaphoreGive(xBLESemaphore);
 
-    ble_init();
+    blecent_init();
     provisioning_init();
-    // wifi_init();
-    // mqtt_init();
+    wifi_init();
+    mqtt_init();
 
     while (true) {
         ESP_LOGI("main", "free heap: %" PRIu32 "b", esp_get_free_heap_size());

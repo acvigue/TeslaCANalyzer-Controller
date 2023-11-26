@@ -9,6 +9,8 @@ inline QueueHandle_t xInterfaceInboxQueue;
 inline QueueHandle_t xInterfaceOutboxQueue;
 inline TaskHandle_t xInterfaceTask = NULL;
 
+QueueHandle_t getInterfaceOutbox();
+QueueHandle_t getInterfaceInbox();
 void interface_task(void *pvParameter);
 
 #endif

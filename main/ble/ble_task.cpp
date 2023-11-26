@@ -26,13 +26,13 @@ extern "C" {
 void ble_store_config_init(void);
 }
 
-uint16_t radar_conn_handle = 0;
-uint16_t interface_conn_handle = 0;
+uint16_t radar_conn_handle = 0xFFFF;
+uint16_t interface_conn_handle = 0xFFFF;
 
 void ble_hosttask(void *param) {
     ESP_LOGI(TAG, "nimble task started");
 
-    nimble_port_run();  // Won't return until ble shits iteslf
+    nimble_port_run();
 
     nimble_port_freertos_deinit();
 }
@@ -252,6 +252,7 @@ void blecent_on_disc_complete(const struct peer *peer, int status, void *arg) {
 int blecent_gap_event(struct ble_gap_event *event, void *arg) {
     struct ble_gap_conn_desc desc;
     struct ble_hs_adv_fields fields;
+    bleQueueItem iPacket;
     int rc;
 
     switch (event->type) {
@@ -265,10 +266,9 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
             return 0;
         case BLE_GAP_EVENT_CONNECT:
             if (event->connect.status == 0) {
-                ESP_LOGI(TAG, "Connection established handle=%d", event->connect.conn_handle);
-
                 rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
                 assert(rc == 0);
+                ESP_LOGI(TAG, "connection established");
 
                 rc = peer_add(event->connect.conn_handle);
                 if (rc != 0) {
@@ -278,12 +278,7 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
 
                 rc = ble_gap_security_initiate(event->connect.conn_handle);
                 if (rc != 0) {
-                    ESP_LOGI(TAG, "Security could not be initiated, rc = %d", rc);
-                    rc = peer_disc_all(event->connect.conn_handle, blecent_on_disc_complete, NULL);
-                    if (rc != 0) {
-                        ESP_LOGE(TAG, "Failed to discover services; rc=%d", rc);
-                        return 0;
-                    }
+                    ESP_LOGW(TAG, "Security could not be initiated, rc = %d", rc);
                 } else {
                     ESP_LOGI(TAG, "Connection secured");
                 }
@@ -294,20 +289,25 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
 
             return 0;
         case BLE_GAP_EVENT_ENC_CHANGE:
-            ESP_LOGI(TAG, "encryption change event; status=%d conn_handle=%d", event->enc_change.status, event->connect.conn_handle);
-            rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
-            assert(rc == 0);
-            print_conn_desc(&desc);
+            ESP_LOGI(TAG, "encryption change event; status=%d", event->enc_change.status);
+            if (event->enc_change.status == 0) {
+                rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
+                assert(rc == 0);
+                print_conn_desc(&desc);
 
-            rc = peer_disc_all(event->connect.conn_handle, blecent_on_disc_complete, NULL);
-            if (rc != 0) {
-                ESP_LOGE(TAG, "Failed to discover services; rc=%d", rc);
+                rc = peer_disc_all(event->enc_change.conn_handle, blecent_on_disc_complete, NULL);
+                if (rc != 0) {
+                    ESP_LOGE(TAG, "Failed to discover services; rc=%d", rc);
+                    ble_gap_terminate(event->enc_change.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+                }
                 return 0;
             }
+            ble_gap_terminate(event->enc_change.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
             return 0;
         case BLE_GAP_EVENT_DISCONNECT:
-            ESP_LOGI(TAG, "disconnect; reason=%d ", event->disconnect.reason);
-            ble_gap_terminate(event->disconnect.conn.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+            ESP_LOGW(TAG, "disconnect; reason=%d ", event->disconnect.reason);
+
+            // ble_gap_terminate(event->disconnect.conn.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
             if (event->disconnect.conn.conn_handle == radar_conn_handle) {
                 if (xRadarTask != NULL) {
                     xTaskNotify(xRadarTask, BLEDeviceTaskNotification::DISCONNECTED, eSetValueWithOverwrite);
@@ -327,8 +327,10 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
         case BLE_GAP_EVENT_DISC_COMPLETE:
             ESP_LOGI(TAG, "discovery complete; reason=%d", event->disc_complete.reason);
             return 0;
+        case BLE_GAP_EVENT_CONN_UPDATE_REQ:
+            ESP_LOGI(TAG, "connection update req");
+            return 0;
         case BLE_GAP_EVENT_NOTIFY_RX:
-            bleQueueItem iPacket;
             iPacket.data = (uint8_t *)malloc(OS_MBUF_PKTLEN(event->notify_rx.om));
             if (iPacket.data == NULL) {
                 ESP_LOGE(TAG, "could not malloc buffer for inc. packet");
@@ -351,19 +353,16 @@ int blecent_gap_event(struct ble_gap_event *event, void *arg) {
                 free(iPacket.data);
             }
             return 0;
-
         case BLE_GAP_EVENT_MTU:
             ESP_LOGI(TAG, "mtu update event; conn_handle=%d cid=%d mtu=%d", event->mtu.conn_handle, event->mtu.channel_id, event->mtu.value);
             return 0;
-
         case BLE_GAP_EVENT_REPEAT_PAIRING:
             rc = ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc);
             assert(rc == 0);
             ble_store_util_delete_peer(&desc.peer_id_addr);
             return BLE_GAP_REPEAT_PAIRING_RETRY;
         default:
-            ESP_LOGI(TAG, "event: %" PRIu8, event->type);
-            return 0;
+            break;
     }
     return 0;
 }
@@ -376,7 +375,7 @@ void blecent_on_sync(void) {
     blecent_scan();
 }
 
-void ble_init() {
+void nimble_subsystem_init() {
     if (xSemaphoreTake(xBLESemaphore, portMAX_DELAY) == pdTRUE) {
         int rc;
         rc = nimble_port_init();
@@ -403,6 +402,10 @@ void ble_init() {
 
         nimble_port_freertos_init(ble_hosttask);
     }
+}
+
+void blecent_init() {
+    nimble_subsystem_init();
     xTaskCreatePinnedToCore(ble_outbox_task, "OutboxTask", 4096, NULL, 5, &xBLEHelperTask, 0);
 }
 
@@ -410,42 +413,52 @@ void ble_outbox_task(void *pvParameter) {
     ESP_LOGI(TAG, "outbox task started");
     while (true) {
         BLEHelperTaskNotification notification;
-        if (xTaskNotifyWait(0, ULONG_MAX, (uint32_t *)&notification, pdMS_TO_TICKS(10))) {
+        if (xTaskNotifyWait(0, ULONG_MAX, (uint32_t *)&notification, pdMS_TO_TICKS(10)) == pdTRUE) {
+            int rc;
             switch (notification) {
                 case NIMBLE_STOP:
                     ESP_LOGW(TAG, "nimble stopping");
                     if (xRadarTask != NULL) {
                         ESP_LOGW(TAG, "removing radar");
                         xTaskNotify(xRadarTask, BLEDeviceTaskNotification::DISCONNECTED, eSetValueWithOverwrite);
-                        peer_disc_all(radar_conn_handle, NULL, NULL);
                         radar_conn_handle = 0;
                     }
                     if (xInterfaceTask != NULL) {
                         ESP_LOGW(TAG, "removing interface");
                         xTaskNotify(xInterfaceTask, BLEDeviceTaskNotification::DISCONNECTED, eSetValueWithOverwrite);
-                        peer_disc_all(interface_conn_handle, NULL, NULL);
                         interface_conn_handle = 0;
                     }
 
-                    nimble_port_deinit();
+                    rc = nimble_port_stop();
+                    if (rc == 0) {
+                        nimble_port_deinit();
+                    } else {
+                        ESP_LOGE(TAG, "Nimble port stop failed, rc = %d", rc);
+                        esp_restart();
+                        break;
+                    }
                     xSemaphoreGive(xBLESemaphore);
-                    ESP_LOGW(TAG, "nimble dead.");
+                    ESP_LOGE(TAG, "nimble dead.");
+                    break;
                 case NIMBLE_START:
-                    ble_init();
+                    ESP_LOGI(TAG, "nimble starting.");
+                    nimble_subsystem_init();
+                    break;
             }
         }
 
-        if (xRadarOutboxQueue != NULL || xInterfaceOutboxQueue != NULL) {
-            if (xRadarOutboxQueue != NULL) {
+        if (getRadarOutbox() != NULL || getInterfaceOutbox() != NULL) {
+            if (getRadarOutbox() != NULL) {
                 bleQueueItem queueItem;
-                if (xQueueReceive(xRadarOutboxQueue, (void *)&queueItem, pdMS_TO_TICKS(50)) == pdTRUE) {
-                    ESP_LOGD(TAG, "helper sending %d bytes of data to radar", queueItem.data_length);
+                if (xQueueReceive(getRadarOutbox(), (void *)&queueItem, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    ESP_LOGD(TAG, "helper sending %d bytes of data to radar:\n %s\n", queueItem.data_length,
+                             uint8_to_hex_string(queueItem.data, queueItem.data_length).c_str());
                     blecent_write(true, queueItem);
                 }
             }
-            if (xInterfaceOutboxQueue != NULL) {
+            if (getInterfaceOutbox() != NULL) {
                 bleQueueItem queueItem;
-                if (xQueueReceive(xInterfaceOutboxQueue, &queueItem, pdMS_TO_TICKS(50)) == pdTRUE) {
+                if (xQueueReceive(getInterfaceOutbox(), &queueItem, pdMS_TO_TICKS(50)) == pdTRUE) {
                     ESP_LOGD(TAG, "helper sending %d bytes of data to interface", queueItem.data_length);
                     blecent_write(false, queueItem);
                 }

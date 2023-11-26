@@ -48,7 +48,7 @@ void blecent_on_disc_complete(const struct peer *peer, int status, void *arg);
 void blecent_rx_subscribe(const struct peer *peer);
 int blecent_write(uint16_t conn_handle, const bleQueueItem dataToWrite);
 int blecent_on_subscribe(uint16_t conn_handle, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void *arg);
-void ble_init();
+void blecent_init();
 void ble_outbox_task(void *pvParameter);
 
 inline TaskHandle_t xBLEHelperTask = nullptr;
